@@ -7,8 +7,7 @@ class HomeController extends Controller
 {
     public function index()
     {
-        $myname = "Eslam";
-        $mylastname = "mohammed";
-        return view('home', compact('myname', 'mylastname'));
+        $stats = ['products' => 42, 'posts' => 12, 'visitors' => 980];
+        return view('home', compact('stats'));
     }
 }
