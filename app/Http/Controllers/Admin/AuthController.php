@@ -1,12 +1,14 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use App\Models\User;
+use App\Models\Admin;
 use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -14,23 +16,25 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => 'required|string|email|max:255|unique:admins',
             'password' => 'required|string|min:8|confirmed',
+            'role' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()->first()], 422);
         }
 
-        $user = User::create([
+        $admin = Admin::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => bcrypt($request->password),
+            'password' => Hash::make($request->password),
+            'role' => $request->role,
         ]);
-
-        $token = $user->createToken('auth_token', abilities: ['role:user'])->plainTextToken;
+        $token = $admin->createToken('auth_token', ['role:admin'])->plainTextToken;
 
         return response()->json([
+            'admin' => $admin,
             'access_token' => $token,
             'token_type' => 'Bearer',
         ]);
@@ -38,31 +42,21 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
-            'password' => 'required|string',
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()->first()], 422);
-        }
+        $admin = Admin::where('email', $request->email)->first();
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        if (!$admin || !Hash::check($request->password, $admin->password)) {
             return response()->json(['error' => 'Invalid credentials'], 401);
         }
 
-        $user = $request->user();
-        $token = $user->createToken('auth_token', ['role:user'])->plainTextToken;
-
         return response()->json([
-            'access_token' => $token,
-            'token_type' => 'Bearer',
+            'admin' => $admin,
+            'token' => $admin->createToken('auth_token', ['role:admin'])->plainTextToken
         ]);
-    }
-
-    public function profile(Request $request)
-    {
-        return response()->json($request->user());
     }
 
     public function logout(Request $request)

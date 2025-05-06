@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
 
         $middleware->alias([
-            'age' => \App\Http\Middleware\CheckAge::class
+            'age' => \App\Http\Middleware\CheckAge::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
