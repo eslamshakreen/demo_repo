@@ -1,79 +1,85 @@
 <?php
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Admin\AuthController as AdminAuthController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\OrderController;
 use App\Models\Category;
 use App\Models\Product;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use \App\Http\Controllers\Admin\AuthController as AdminAuthController;
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+use App\Http\Resources\ProductResource;
 
+// User Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
 
+    Route::post('user/logout', [AuthController::class, 'logout']);
+    Route::get('user/profile', [AuthController::class, 'profile']);
+});
+
+// User Authentication Routes
 Route::post('user/register', [AuthController::class, 'register']);
 Route::post('user/login', [AuthController::class, 'login']);
-Route::post('user/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-Route::get('user/profile', [AuthController::class, 'profile'])->middleware('auth:sanctum');
 
+// Admin Authentication Routes
 Route::post('/admin/register', [AdminAuthController::class, 'register']);
 Route::post('/admin/login', [AdminAuthController::class, 'login']);
+
+// Admin Routes
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/admin/logout', [AdminAuthController::class, 'logout']);
+    Route::get('profile', [AdminAuthController::class, 'profile']);
 });
 
+// Product and Order Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('user/products', [ProductController::class, 'index']);
+    Route::get('user/products/{id}', function ($id) {
+        $product = Product::find($id);
+        abort_if(!$product, 404, 'المنتج غير موجود');   // ← هنا
+        return new ProductResource($product);
+    });
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders', [OrderController::class, 'index']);
 
+    // Routes for both users and admins
+    // Route::middleware()->group(function () {
 
-Route::get('/products', function (Request $request) {
-    return Product::all();
+    // });
+
+    // Routes for admin only
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::get('/products/{id}', function ($id) {
+            $product = Product::find($id);
+            abort_if(!$product, 404, 'المنتج غير موجود');   // ← هنا
+            return new ProductResource($product);
+        });
+
+    });
 });
 
-Route::get('/product/{id}', function (Request $request, $id) {
-    $product = Product::findOrFail($id);
-    return $product;
-})->name('product_detils');
+// Test Route for Lazy and Eager Loading
+Route::get('/test-lazy-eager-loading', function () {
+    DB::enableQueryLog();
 
-Route::get('/product-category/{id}', function (Request $request, $id) {
-    $product = Product::findOrFail($id)->category;
-    return $product;
-})->name('product_category');
-
-
-Route::get('/category-products/{id}', function (Request $request, $id) {
-    $product = Category::findOrFail($id)->products;
-    return $product;
-})->name('product_category')->middleware('age:21');
-
-
-// Route::post('/product', function (Request $request) {
-//     $product = Product::create($request->all())
-//     return $product;
-// })->name('product_create');
-
-
-Route::post('/product', function (Request $request) {
-    $validator = Validator::make($request->all(), [
-        'name' => 'required|string|max:255',
-        'price' => 'required|numeric|min:0',
-        'description' => 'nullable|string',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['error' => $validator->errors()->first()], 422);
+    $categories = Category::all();
+    foreach ($categories as $category) {
+        $category->products;
     }
-    $product = Product::create($request->all());
-    return $product;
+    $lazyLoadingQueries = DB::getQueryLog();
+    DB::flushQueryLog();
 
+    $categoriesWithProducts = Category::with('products')->get();
+    $eagerLoadingQueries = DB::getQueryLog();
+    DB::flushQueryLog();
+
+    return response()->json([
+        'lazy_loading_query_count' => count($lazyLoadingQueries),
+        'eager_loading_query_count' => count($eagerLoadingQueries),
+    ]);
 });
-
-// Route::post('/product', function (Request $request) {
-
-
-//     $product = Product::create($request->all());
-//     return $product;
-// })->name('product_create'); 
-
-Route::get('/club', fn() => 'أهلاً بك في النادي')->middleware('age');
-

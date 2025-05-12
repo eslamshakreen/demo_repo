@@ -4,32 +4,25 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Http\Resources\ProductResource;
 
 class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::all();
-        return view('products.index', compact('products'));
+
+        $prods = Product::with('category')->paginate(perPage: 2);
+        return ProductResource::collection($prods);
     }
 
-    public function show($id)
+    public function store(Request $r)
     {
-        $product = Product::find($id)->category();
-        return $product;
-    }
-    public function create()
-    {
-        return view('products.create_product');
-    }
-
-
-    public function store(Request $request)
-    {
-        $name = $request->input('name');
-        $price = $request->input('price');
-        $product = ['name' => $name, 'price' => $price];
-        return view('products.show', compact('product'));
+        $p = Product::create($r->validate([
+            'name' => 'required',
+            'price' => 'required',
+            'category_id' => 'required'
+        ]));
+        return new ProductResource($p);
     }
 
 
