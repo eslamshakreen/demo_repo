@@ -7,16 +7,24 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Http\Resources\OrderResource;
 use App\Exceptions\MaxOrderTotalExceeded;
+use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
     public function store(Request $r)
     {
-        $data = $r->validate([
+
+        $validator = Validator::make($r->all(), [
             'items' => 'required|array',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|integer|min:1',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()->first()], 422);
+        }
+
+
 
         $order = $r->user()->orders()->create(['total' => 0]);
         $total = 0;
@@ -37,11 +45,7 @@ class OrderController extends Controller
             $total += $prod->price * $it['qty'];
         }
 
-        if ($total > 10000) {
-            // ألغي الطلب الذي أنشأته قبل قليل
-            $order->delete();
-            throw new MaxOrderTotalExceeded();
-        }
+
         $order->update(['total' => $total]);
 
         // lazy-eager load to avoid N+1 in Resource
